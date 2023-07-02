@@ -24,8 +24,15 @@ app.use((req, res, next) => {
   next(); // Pasar al siguiente middleware o ruta
 });
 
+//SOLO PARA PROBAR
+// app.post("/sort", (req, res) => {
+//   BD.sort(function(a,b){return a.id-b.id});
+//   guardarFrutas(BD);
+//   res.status(201).send("ORDENADO");
+// });
+
 // Ruta principal que devuelve los datos de las frutas
-app.get("/", (req, res) => {
+app.get("/frutas", (req, res) => {
    res.send(BD);
 });
 
@@ -37,107 +44,105 @@ app.get("/", (req, res) => {
 //     res.status(201).send("Fruta agregada!"); // Enviar una respuesta exitosa
 // });
 
+/*_________________________ NUEVO POST _________________________*/
+app.post("/postFruta", (req, res) => {
+  const newFruit = addFruitToDB(req.body);
+
+  res.status(201).send(`Fruta agregada con ID ${newFruit.id}!`);
+});
+
 /*_________________________ GET _________________________*/
-app.get("/fruta/:id", (req, res) => {
+app.get("/getFruta/id/:id", (req, res) => {
   const id = parseInt(req.params.id);
+  
   let message
+  let statusCode;
 
   if (isNaN(id)){
+    statusCode = 404;
     message = "ID no es valido!";
-    res.send(message);
   }
   else{
     const fruit = getFruit(id);
-    let statusCode;
 
     if (fruit !== undefined && fruit !== null){
       statusCode = 200;
-      res.json(fruit); 
-    }else {
-      statusCode = 204;
-      message = "Fruta inexistente!";
-      res.send(message);
+      message = JSON.stringify(fruit);
     }
-    res.status(statusCode)
+    else {
+      statusCode = 404;
+      message = "Fruta inexistente!";
+    }
   }  
-});
 
-/*_________________________ POST _________________________*/
-app.post("/", (req, res) => {
-  const newFruit = req.body;
-
-  newFruit.id = getNewFruitID();
-
-  BD.push(newFruit);
-
-  guardarFrutas(BD);
-
-  res.status(201).send("Fruta agregada!");
+  res.status(statusCode).send(message); 
 });
 
 /*_________________________ PUT _________________________*/
-app.put("/fruta/:id", (req, res) => {
+app.put("/putFruta/id/:id", (req, res) => {
   const id = parseInt(req.params.id);
-  if (isNaN(id)){
-    message = "ID no es valido!";
-    res.send(message);
-  }else{
-    let fruit = getFruit(id);
 
   let statusCode;
   let message;
 
-  if (fruit === undefined){
-    fruit = req.body;
-    fruit.id = getNewFruitID();
-
-    BD.push(fruit);
-
-    statusCode = 201;
-    message = `Fruta con ID: ${id} no existe, se creo nueva fruta con ID: ${fruit.id}`;
+  if (isNaN(id)){
+    statusCode = 404;
+    message = "ID no es valido!";    
   }
   else{
-    fruit = req.body; 
-    fruit.id = id;
-    BD.splice(id-1, 1, fruit);
+    let fruit = getFruit(id);
 
-    statusCode = 200;
-    message = "Fruta modificada!";
+    if (fruit === undefined || fruit === null){
+      fruit = addFruitToDB(req.body);
+
+      statusCode = 201;
+      message = `Fruta con ID: ${id} no existe, se creo nueva fruta con ID: ${fruit.id}`;
+    }
+    else{
+      fruit = req.body; 
+      fruit.id = id;
+      BD.splice(id-1, 1, fruit);
+
+      statusCode = 200;
+      message = "Fruta modificada!";
+    }
+
+    guardarFrutas(BD);
   }
 
-  guardarFrutas(BD);
-  
   res.status(statusCode).send(message);
-  }
 });
 
 /*_________________________ DELETE _________________________*/
-app.delete("/fruta/:id", (req, res) => {
+app.delete("/deleteFruta/id/:id", (req, res) => {
   const id = parseInt(req.params.id);
+
+  let statusCode;
+  let message;
+
   if (isNaN(id)){
+    statusCode = 404;
     message = "ID no es valido!";
-    res.send(message);
   }else{
-    let statusCode;
-    let message;
     let fruit = getFruit(id);
 
     if (fruit !== undefined && fruit !== null){
       const fruitIndex = BD.findIndex(fruit => fruit.id == id)
-      const deleted =  BD.splice(fruitIndex, 1)[0];
-      console.log(`deleted: ${JSON.stringify(deleted)}`);
+
+      BD.splice(fruitIndex, 1);
+      
       guardarFrutas(BD);
+
       statusCode = 410;
       message = `Fruta con ID: ${id} eliminada!`;
     }
     else{
-      console.log("camino else")
       statusCode = 404;
       message = `Fruta con ID: ${id} no existe.`;
     }
+  }  
 
-    res.status(statusCode).send(message);
-    }  
+  res.status(statusCode).send(message);
 });
 
 // Ruta para manejar las solicitudes a rutas no existentes
@@ -150,11 +155,42 @@ app.listen(PORT, () => {
     console.log(`Servidor escuchando en el puerto ${PORT}`);
 });
 
+function addFruitToDB(fruit){
+
+  fruit.id = getNewFruitID();
+
+  BD.push(fruit);
+
+  guardarFrutas(BD);
+  return fruit;
+}
 
 function getFruit(id){
   return BD.find(fruit => fruit.id === id);
 }
 
 function getNewFruitID(){
-  return BD.length + 1;
+  BD.sort(function(a,b){return a.id-b.id});
+
+  let newID = 1;
+  let highestID = 1;
+
+  for (var i = 0; i < BD.length; i++){
+    let currentFruitID = BD[i].id;
+
+    if (highestID < currentFruitID){
+      highestID = currentFruitID;
+    }
+
+    if (newID === currentFruitID){
+      newID = currentFruitID + 1;
+    }
+
+    if (newID === highestID){
+      newID = highestID + 1;
+    }
+    
+  }
+
+  return newID;
 }
